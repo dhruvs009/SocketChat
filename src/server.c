@@ -18,7 +18,7 @@ pthread_t userthreads[10];
 int quitServerFlag=0;
 int NUM_USERS=0;
 
-void * communicate(void * user){        //Recieve name from user first.
+void * communicate(void * user){        //Recieve name from user first then set up required communication.
 
 }
 
