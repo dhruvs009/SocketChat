@@ -21,6 +21,22 @@ pthread_t userthreads[10];
 volatile int quitServerFlag=0;
 int NUM_USERS=0;
 
+void * communicate(void * userNum){
+    int sender= *((int *) userNum);
+    sender--;
+    struct USER senderUser= users[sender];
+    char toRecieve[1024];
+    char toSend[1024];
+    int RECIEVE_DESCRIPTOR;
+    while(1){
+        RECIEVE_DESCRIPTOR=recv(senderUser.socket_ID, toRecieve, 1024, 0);
+        toRecieve[RECIEVE_DESCRIPTOR]='\0';
+        if(RECIEVE_DESCRIPTOR>0){
+            printf("%s: %s",senderUser.username,toRecieve);
+        }
+    }
+}
+
 void * execServerLoop(){
     int SERVER_SOCKET_DESCRIPTOR, RECIEVE_DESCRIPTOR;
     char toRecieve[1024];
@@ -52,9 +68,9 @@ void * execServerLoop(){
             printf("%s is connected.\n",users[NUM_USERS].username);
             NUM_USERS++;
         }
-        // pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *)&users[NUM_USERS]);
+        pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *) &NUM_USERS);
     }
-    
+    return NULL;
 }
 
 int main(){

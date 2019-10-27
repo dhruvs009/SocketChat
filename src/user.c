@@ -23,7 +23,22 @@ int NUM_USERS=0;
 char SERVER_SOCKET_PATH[100];
 char USER_NAME[200];
 
-void * execUserLoop(){
+void * recieverLoop(void * USER_SOCKET_DESCRIPTOR){
+    while(1){
+        char toRecieve[1024];
+        int RECIEVE_DESCRIPTOR=recv(*((int *)USER_SOCKET_DESCRIPTOR), toRecieve, 1024, 0);
+        toRecieve[RECIEVE_DESCRIPTOR]='\0';
+        printf("%s\n", toRecieve);
+    }
+}
+
+int main(int argc, char** argv){
+    if(argc<3){
+        printf("Please provide both socket file and Username.\n");
+        exit(0);
+    }
+    sprintf(SERVER_SOCKET_PATH,"../socket/%s", argv[1]);
+    sprintf(USER_NAME, "%s", argv[2]);
     int USER_SOCKET_DESCRIPTOR;
     struct sockaddr_un USER_SOCKET;
     if((USER_SOCKET_DESCRIPTOR=socket(AF_UNIX, SOCK_STREAM, 0))==-1){
@@ -37,21 +52,15 @@ void * execUserLoop(){
         exit(1);
     }
     if(send(USER_SOCKET_DESCRIPTOR, USER_NAME, strlen(USER_NAME), 0)==-1){
-        perror("Send data");
+        perror("Send Username");
         exit(1);
     }
-}
-
-int main(int argc, char** argv){
-    sprintf(SERVER_SOCKET_PATH,"../socket/%s", argv[1]);
-    sprintf(USER_NAME, "%s", argv[2]);
-    pthread_t execUserLoopThread;
-    pthread_create(&execUserLoopThread, NULL, execUserLoop, (void *) NULL);
+    char toSend[1024];
     while(1){
-        if(getchar()=='q'){
-            quitServerFlag=1;
-            pthread_join(execUserLoopThread, (void *) NULL);
-            break;
+        printf("Me: ");
+        fgets(toSend, 1024, stdin);
+        if(send(USER_SOCKET_DESCRIPTOR, toSend, strlen(toSend), 0)==-1){
+            perror("Send message");
         }
     }
 }
