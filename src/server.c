@@ -1,68 +1,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/unistd.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/un.h>
 
 struct USER{
     char username[20];
     int socket_ID;
-    struct sockaddr_in userAddress;
+    struct sockaddr_un userAddress;
     int len;
     int status;
 };
 
 struct USER users[10];
 pthread_t userthreads[10];
-int quitServerFlag=0;
+volatile int quitServerFlag=0;
 int NUM_USERS=0;
 
-void * communicate(void * user){        //Recieve name from user first then set up required communication.
-
-}
-
-struct sockaddr_in setupServer(int socketDescriptor, unsigned long port, char* ipAddress){
-    struct sockaddr_in socketAddress;
-    socketAddress.sin_family=AF_INET;
-    socketAddress.sin_port=htons(port);
-    socketAddress.sin_addr.s_addr=inet_addr(ipAddress);
-    if(bind(socketDescriptor, (struct sockaddr *) &socketAddress, sizeof(socketAddress))<0){
+void * execServerLoop(){
+    int SERVER_SOCKET_DESCRIPTOR, RECIEVE_DESCRIPTOR;
+    char toRecieve[1024];
+    struct sockaddr_un SERVER_SOCKET;
+    if((SERVER_SOCKET_DESCRIPTOR=socket(AF_UNIX, SOCK_STREAM, 0))==-1){
+        perror("Socket init");
+        exit(1);
+    }
+    SERVER_SOCKET.sun_family=AF_UNIX;
+    sprintf(SERVER_SOCKET.sun_path, "../socket/socket_%d",getpid());
+    unlink(SERVER_SOCKET.sun_path);
+    if(bind(SERVER_SOCKET_DESCRIPTOR, (struct sockaddr *)&SERVER_SOCKET, strlen(SERVER_SOCKET.sun_path)+sizeof(SERVER_SOCKET.sun_family))==-1){
         perror("Socket binding");
-        exit(0);
+        exit(1);
     }
-    if(listen(socketDescriptor,1024)<0){
+    if(listen(SERVER_SOCKET_DESCRIPTOR, 1024)==-1){
         perror("Socket listening");
-        exit(0);
+        exit(1);
     }
-    printf("Server on at address %s listening at port %ld\n", ipAddress, port);
-    return socketAddress;
-}
-
-void * quitServer(){
-    while(1){
-        if(getchar()=='q'){
-            quitServerFlag=1;
-            return NULL;
+    printf("Server listening at socket_%d\n",getpid());
+    while(quitServerFlag==0){
+        users[NUM_USERS].socket_ID=accept(SERVER_SOCKET_DESCRIPTOR, (struct sockaddr *)&users[NUM_USERS].userAddress, &users[NUM_USERS].len);
+        RECIEVE_DESCRIPTOR=recv(users[NUM_USERS].socket_ID, toRecieve, 200, 0);
+        if(RECIEVE_DESCRIPTOR<0){
+            perror("Recieve data");
+            NUM_USERS++;
         }
+        printf("%s\n", toRecieve);
+        // pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *)&users[NUM_USERS]);
     }
-}
-
-void connectUser(int socketDescriptor){
-    users[NUM_USERS].socket_ID=accept(socketDescriptor, (struct sockaddr *)&users[NUM_USERS].userAddress, &users[NUM_USERS].len);
-    pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *)&users[NUM_USERS]);
-    NUM_USERS++;
+    
 }
 
 int main(){
-    int SERVER_SOCKET=socket(PF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in SERVER_SOCKET_ADDR=setupServer(SERVER_SOCKET, 3001, "127.0.0.1");
-    pthread_t quitServerThread;
-    pthread_create(&quitServerThread, NULL, quitServer, (void *) NULL);
-    while(quitServerFlag==0){
-        connectUser(SERVER_SOCKET);
-    }
-    for(int i=0; i<NUM_USERS; i++){
-        pthread_join(userthreads[i], NULL);
+    pthread_t execServerLoopThread;
+    pthread_create(&execServerLoopThread, NULL, execServerLoop, (void *) NULL);
+    while(1){
+        if(getchar()=='q'){
+            quitServerFlag=1;
+            pthread_join(execServerLoopThread, (void *) NULL);
+            break;
+        }
     }
 }
