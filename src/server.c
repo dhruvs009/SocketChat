@@ -46,9 +46,12 @@ void * execServerLoop(){
         RECIEVE_DESCRIPTOR=recv(users[NUM_USERS].socket_ID, toRecieve, 200, 0);
         if(RECIEVE_DESCRIPTOR<0){
             perror("Recieve data");
+        }
+        else if(RECIEVE_DESCRIPTOR>0){
+            sprintf(users[NUM_USERS].username,"@%s",toRecieve);
+            printf("%s is connected.\n",users[NUM_USERS].username);
             NUM_USERS++;
         }
-        printf("%s\n", toRecieve);
         // pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *)&users[NUM_USERS]);
     }
     
