@@ -21,23 +21,84 @@ pthread_t userthreads[10];
 volatile int quitServerFlag=0;
 int NUM_USERS=0;
 
-void * communicate(void * userNum){
+void * serverMessage(void * pid){
+    int pidParent=*((int *) pid);
+    char toSend[1024];
+    while(quitServerFlag==0){
+        printf("SERVER: ");
+        fgets(toSend, 1024, stdin);
+        if(strcmp(toSend, "quit\n")==0){
+            quitServerFlag=1;
+            int QUIT_SOCKET_DESCRIPTOR;
+            struct sockaddr_un QUIT_SOCKET;
+            if((QUIT_SOCKET_DESCRIPTOR=socket(AF_UNIX, SOCK_STREAM, 0))==-1){
+                perror("Socket init");
+                exit(1);
+            }
+            QUIT_SOCKET.sun_family=AF_UNIX;
+            sprintf(QUIT_SOCKET.sun_path,"../socket/socket_%d",pidParent);
+            if(connect(QUIT_SOCKET_DESCRIPTOR, (struct sockaddr *)&QUIT_SOCKET, strlen(QUIT_SOCKET.sun_path)+sizeof(QUIT_SOCKET.sun_family))==-1){
+                perror("Connection");
+            }
+            if(send(QUIT_SOCKET_DESCRIPTOR, "Server Quit.", 14, 0)==-1){
+                perror("Quit Handshake");
+            }
+            for(int i=0; i<NUM_USERS; i++){
+                if(strcmp(users[i].username,"")!=0){
+                    if(send(users[i].socket_ID, "@server quit.", 15, 0)==-1){
+                        perror("Quit user handshake");
+                    }
+                }
+            }
+            close(QUIT_SOCKET_DESCRIPTOR);
+        }
+        else if(strcmp(toSend, "List Users\n")==0){
+            int count=1;
+            for(int i=0; i<NUM_USERS; i++){
+                if(strcmp(users[i].username, "")!=0){
+                    printf("%d. %s\n", count++, users[i].username);
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+void * recieverLoop(void * userNum){
     int sender= *((int *) userNum);
     sender--;
     struct USER senderUser= users[sender];
     char toRecieve[1024];
     char toSend[1024];
     int RECIEVE_DESCRIPTOR;
-    while(1){
+    char * split;
+    char splitted[1024][1024];
+    while(quitServerFlag==0){
         RECIEVE_DESCRIPTOR=recv(senderUser.socket_ID, toRecieve, 1024, 0);
         toRecieve[RECIEVE_DESCRIPTOR]='\0';
         if(RECIEVE_DESCRIPTOR>0){
-            printf("%s: %s",senderUser.username,toRecieve);
+            char toProcess[1024];
+            strcpy(toProcess, toRecieve);
+            split=strtok(toRecieve," ");
+            int i=0;
+            while(split!=NULL){
+                strcpy(splitted[i], split);
+                i++;
+                split=strtok(NULL, " \n");
+            }
+            if(strcmp(toProcess,"@server I quit.\n")==0){
+                if(send(senderUser.socket_ID, "User exit.", 12, 0)==-1){
+                    perror("User exit message");
+                    break;
+                }
+            }
         }
     }
+    sprintf(users[sender].username,"");
+    return NULL;
 }
 
-void * execServerLoop(){
+int main(){
     int SERVER_SOCKET_DESCRIPTOR, RECIEVE_DESCRIPTOR;
     char toRecieve[1024];
     struct sockaddr_un SERVER_SOCKET;
@@ -57,6 +118,9 @@ void * execServerLoop(){
         exit(1);
     }
     printf("Server listening at socket_%d\n",getpid());
+    int pid=getpid();
+    pthread_t communicateThread;
+    pthread_create(&communicateThread, NULL, serverMessage, (void *)&pid);
     while(quitServerFlag==0){
         users[NUM_USERS].socket_ID=accept(SERVER_SOCKET_DESCRIPTOR, (struct sockaddr *)&users[NUM_USERS].userAddress, &users[NUM_USERS].len);
         RECIEVE_DESCRIPTOR=recv(users[NUM_USERS].socket_ID, toRecieve, 200, 0);
@@ -64,23 +128,22 @@ void * execServerLoop(){
             perror("Recieve data");
         }
         else if(RECIEVE_DESCRIPTOR>0){
-            sprintf(users[NUM_USERS].username,"@%s",toRecieve);
-            printf("%s is connected.\n",users[NUM_USERS].username);
-            NUM_USERS++;
+            if(strcmp(toRecieve,"Server Quit.")==0){
+                printf("%s\n",toRecieve);
+                break;
+            }
+            else{
+                sprintf(users[NUM_USERS].username,"@%s",toRecieve);
+                char towrite[400];
+                NUM_USERS++;
+            }
         }
-        pthread_create(&userthreads[NUM_USERS], NULL, communicate, (void *) &NUM_USERS);
+        pthread_create(&userthreads[NUM_USERS], NULL, recieverLoop, (void *) &NUM_USERS);
     }
-    return NULL;
-}
-
-int main(){
-    pthread_t execServerLoopThread;
-    pthread_create(&execServerLoopThread, NULL, execServerLoop, (void *) NULL);
-    while(1){
-        if(getchar()=='q'){
-            quitServerFlag=1;
-            pthread_join(execServerLoopThread, (void *) NULL);
-            break;
-        }
+    for(int i=0; i<NUM_USERS; i++){
+        pthread_cancel(userthreads[i]);
+        pthread_join(userthreads[i], (void *)NULL);
     }
+    close(SERVER_SOCKET_DESCRIPTOR);
+    return 0;
 }

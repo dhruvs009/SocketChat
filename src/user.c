@@ -18,18 +18,21 @@ struct USER{
 
 struct USER users[10];
 pthread_t userthreads[10];
-volatile int quitServerFlag=0;
+volatile int quitUserFlag=0;
 int NUM_USERS=0;
 char SERVER_SOCKET_PATH[100];
 char USER_NAME[200];
 
-void * recieverLoop(void * USER_SOCKET_DESCRIPTOR){
-    while(1){
-        char toRecieve[1024];
-        int RECIEVE_DESCRIPTOR=recv(*((int *)USER_SOCKET_DESCRIPTOR), toRecieve, 1024, 0);
-        toRecieve[RECIEVE_DESCRIPTOR]='\0';
-        printf("%s\n", toRecieve);
+void * senderLoop(void * USER_SOCKET_DESCRIPTOR){
+    char toSend[1024];
+    while(quitUserFlag==0){
+        printf("Me: ");
+        fgets(toSend, 1024, stdin);
+        if(send(*((int *)USER_SOCKET_DESCRIPTOR), toSend, strlen(toSend), 0)==-1){
+            perror("Send message");
+        }
     }
+    return NULL;
 }
 
 int main(int argc, char** argv){
@@ -55,12 +58,28 @@ int main(int argc, char** argv){
         perror("Send Username");
         exit(1);
     }
-    char toSend[1024];
+    pthread_t senderThread;
+    pthread_create(&senderThread, NULL, senderLoop, (void * )&USER_SOCKET_DESCRIPTOR);
     while(1){
-        printf("Me: ");
-        fgets(toSend, 1024, stdin);
-        if(send(USER_SOCKET_DESCRIPTOR, toSend, strlen(toSend), 0)==-1){
-            perror("Send message");
+        char toRecieve[1024];
+        int RECIEVE_DESCRIPTOR=recv(USER_SOCKET_DESCRIPTOR, toRecieve, 1024, 0);
+        toRecieve[RECIEVE_DESCRIPTOR]='\0';
+        if(strcmp(toRecieve,"User exit.")==0){
+            printf("User exit.\n");
+            quitUserFlag=1;
+            break;
+        }
+        else if(strcmp(toRecieve,"@server quit.")==0){
+            printf("Server was closed.\n");
+            quitUserFlag=1;
+            break;
+        }
+        else{
+            printf("%s\n", toRecieve);
         }
     }
+    pthread_cancel(senderThread);
+    pthread_join(senderThread, (void *)NULL);
+    close(USER_SOCKET_DESCRIPTOR);
+    return 0;
 }
