@@ -55,7 +55,7 @@ void * serverMessage(void * pid){
         else if(strcmp(toSend, "List Users\n")==0){
             int count=1;
             for(int i=0; i<NUM_USERS; i++){
-                if(strcmp(users[i].username, "")!=0){
+                if(strcmp(users[i].username, " ")!=0){
                     printf("%d. %s\n", count++, users[i].username);
                 }
             }
@@ -79,7 +79,7 @@ void * recieverLoop(void * userNum){
         if(RECIEVE_DESCRIPTOR>0){
             char toProcess[1024];
             strcpy(toProcess, toRecieve);
-            split=strtok(toRecieve," ");
+            split=strtok(toRecieve," \n");
             int i=0;
             while(split!=NULL){
                 strcpy(splitted[i], split);
@@ -92,9 +92,18 @@ void * recieverLoop(void * userNum){
                     break;
                 }
             }
+            else if(splitted[0][0]=='@'){
+                int sent=0;
+                for(int i=0; i< NUM_USERS; i++){
+                    if(strcmp(splitted[0],users[i].username)==0){
+                        if(send(users[i].socket_ID, toProcess, strlen(toProcess), 0)==-1){
+                            perror("User send message.");
+                        }
+                    }
+                }
+            }
         }
     }
-    sprintf(users[sender].username,"");
     return NULL;
 }
 

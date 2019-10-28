@@ -26,7 +26,6 @@ char USER_NAME[200];
 void * senderLoop(void * USER_SOCKET_DESCRIPTOR){
     char toSend[1024];
     while(quitUserFlag==0){
-        printf("Me: ");
         fgets(toSend, 1024, stdin);
         if(send(*((int *)USER_SOCKET_DESCRIPTOR), toSend, strlen(toSend), 0)==-1){
             perror("Send message");
@@ -73,9 +72,6 @@ int main(int argc, char** argv){
             printf("Server was closed.\n");
             quitUserFlag=1;
             break;
-        }
-        else{
-            printf("%s\n", toRecieve);
         }
     }
     pthread_cancel(senderThread);
