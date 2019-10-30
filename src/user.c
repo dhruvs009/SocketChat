@@ -73,6 +73,9 @@ int main(int argc, char** argv){
             quitUserFlag=1;
             break;
         }
+        else{
+            printf("%s\n", toRecieve);
+        }
     }
     pthread_cancel(senderThread);
     pthread_join(senderThread, (void *)NULL);

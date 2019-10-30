@@ -25,7 +25,6 @@ void * serverMessage(void * pid){
     int pidParent=*((int *) pid);
     char toSend[1024];
     while(quitServerFlag==0){
-        printf("SERVER: ");
         fgets(toSend, 1024, stdin);
         if(strcmp(toSend, "quit\n")==0){
             quitServerFlag=1;
@@ -86,6 +85,14 @@ void * recieverLoop(void * userNum){
                 i++;
                 split=strtok(NULL, " \n");
             }
+            char toSendOut[1500];
+            sprintf(toSendOut,"%s:", senderUser.username);
+            if(i>=2){
+                for(int j=1; j<i; j++){
+                    strcat(toSendOut," ");
+                    strcat(toSendOut, splitted[j]);
+                }
+            }
             if(strcmp(toProcess,"@server I quit.\n")==0){
                 if(send(senderUser.socket_ID, "User exit.", 12, 0)==-1){
                     perror("User exit message");
@@ -94,12 +101,24 @@ void * recieverLoop(void * userNum){
             }
             else if(splitted[0][0]=='@'){
                 int sent=0;
-                for(int i=0; i< NUM_USERS; i++){
-                    if(strcmp(splitted[0],users[i].username)==0){
-                        if(send(users[i].socket_ID, toProcess, strlen(toProcess), 0)==-1){
+                for(int j=0; j< NUM_USERS; j++){
+                    unsigned int k=strcmp(splitted[0],users[j].username); 
+                    if(k==0 || k==-127){
+                        if(send(users[j].socket_ID, toSendOut, strlen(toSendOut), 0)==-1){
                             perror("User send message.");
                         }
+                        sent=1;
                     }
+                }
+                if(sent==0){
+                    if(send(senderUser.socket_ID, "@server: No such user as specified.", 37, 0)==-1){
+                        perror("Server send no user message.");
+                    }
+                }
+            }
+            else{
+                if(send(senderUser.socket_ID, "@server: Please specify who the message is meant for in the first word of the message preceded by @ (For example if the message is meant for username 'abc' then send the message as @abc <message>).",199, 0)==-1){
+                    perror("Server send error message");
                 }
             }
         }
