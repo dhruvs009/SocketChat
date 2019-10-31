@@ -62,19 +62,21 @@ int main(int argc, char** argv){
     while(1){
         char toRecieve[1024];
         int RECIEVE_DESCRIPTOR=recv(USER_SOCKET_DESCRIPTOR, toRecieve, 1024, 0);
-        toRecieve[RECIEVE_DESCRIPTOR]='\0';
-        if(strcmp(toRecieve,"User exit.")==0){
-            printf("User exit.\n");
-            quitUserFlag=1;
-            break;
-        }
-        else if(strcmp(toRecieve,"@server quit.")==0){
-            printf("Server was closed.\n");
-            quitUserFlag=1;
-            break;
-        }
-        else{
-            printf("%s\n", toRecieve);
+        if(RECIEVE_DESCRIPTOR>0){
+            toRecieve[RECIEVE_DESCRIPTOR]='\0';
+            if(strcmp(toRecieve,"User exit.")==0){
+                printf("User exit.\n");
+                quitUserFlag=1;
+                break;
+            }
+            else if(strcmp(toRecieve,"@server quit.")==0){
+                printf("Server was closed.\n");
+                quitUserFlag=1;
+                break;
+            }
+            else{
+                printf("%s\n", toRecieve);
+            }
         }
     }
     pthread_cancel(senderThread);

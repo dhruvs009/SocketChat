@@ -54,7 +54,7 @@ void * serverMessage(void * pid){
         else if(strcmp(toSend, "List Users\n")==0){
             int count=1;
             for(int i=0; i<NUM_USERS; i++){
-                if(strcmp(users[i].username, " ")!=0){
+                if(strcmp(users[i].username,"")!=0){
                     printf("%d. %s\n", count++, users[i].username);
                 }
             }
@@ -63,17 +63,15 @@ void * serverMessage(void * pid){
     return NULL;
 }
 
-void * recieverLoop(void * userNum){
-    int sender= *((int *) userNum);
-    sender--;
-    struct USER senderUser= users[sender];
+void * recieverLoop(void * userDetails){
+    struct USER* senderUser= (struct USER *)userDetails;
     char toRecieve[1024];
     char toSend[1024];
     int RECIEVE_DESCRIPTOR;
     char * split;
     char splitted[1024][1024];
     while(quitServerFlag==0){
-        RECIEVE_DESCRIPTOR=recv(senderUser.socket_ID, toRecieve, 1024, 0);
+        RECIEVE_DESCRIPTOR=recv(senderUser->socket_ID, toRecieve, 1024, 0);
         toRecieve[RECIEVE_DESCRIPTOR]='\0';
         if(RECIEVE_DESCRIPTOR>0){
             char toProcess[1024];
@@ -86,7 +84,7 @@ void * recieverLoop(void * userNum){
                 split=strtok(NULL, " \n");
             }
             char toSendOut[1500];
-            sprintf(toSendOut,"%s:", senderUser.username);
+            sprintf(toSendOut,"%s:", senderUser->username);
             if(i>=2){
                 for(int j=1; j<i; j++){
                     strcat(toSendOut," ");
@@ -94,30 +92,42 @@ void * recieverLoop(void * userNum){
                 }
             }
             if(strcmp(toProcess,"@server I quit.\n")==0){
-                if(send(senderUser.socket_ID, "User exit.", 12, 0)==-1){
+                if(send(senderUser->socket_ID, "User exit.", 12, 0)==-1){
                     perror("User exit message");
+                    strcpy(senderUser->username, "");
                     break;
                 }
             }
             else if(splitted[0][0]=='@'){
                 int sent=0;
-                for(int j=0; j< NUM_USERS; j++){
-                    unsigned int k=strcmp(splitted[0],users[j].username); 
-                    if(k==0 || k==-127){
-                        if(send(users[j].socket_ID, toSendOut, strlen(toSendOut), 0)==-1){
-                            perror("User send message.");
+                if(strcmp(splitted[0],"@everyone")==0){
+                    for(int j=0; j<NUM_USERS; j++){
+                        if(strcmp(users[j].username,senderUser->username)!=0 && send(users[j].socket_ID, toSendOut, strlen(toSendOut), 0)==-1){
+                            perror("User send message to everyone.");
                         }
-                        sent=1;
                     }
                 }
-                if(sent==0){
-                    if(send(senderUser.socket_ID, "@server: No such user as specified.", 37, 0)==-1){
-                        perror("Server send no user message.");
+                else{
+                    for(int j=0; j< NUM_USERS; j++){
+                        unsigned int k=strcmp(splitted[0],users[j].username); 
+                        if(k==0 || k==-127){
+                            if(strcmp(users[j].username,"")!=0 && send(users[j].socket_ID, toSendOut, strlen(toSendOut), 0)==-1){
+                                perror("User send message.");
+                            }
+                            else{
+                                sent=1;
+                            }
+                        }
+                    }
+                    if(sent==0){
+                        if(send(senderUser->socket_ID, "@server: No such user as specified.", 37, 0)==-1){
+                            perror("Server send no user message.");
+                        }
                     }
                 }
             }
             else{
-                if(send(senderUser.socket_ID, "@server: Please specify who the message is meant for in the first word of the message preceded by @ (For example if the message is meant for username 'abc' then send the message as @abc <message>).",199, 0)==-1){
+                if(send(senderUser->socket_ID, "@server: Please specify who the message is meant for in the first word of the message preceded by @ (For example if the message is meant for username 'abc' then send the message as @abc <message>).",199, 0)==-1){
                     perror("Server send error message");
                 }
             }
@@ -166,7 +176,7 @@ int main(){
                 NUM_USERS++;
             }
         }
-        pthread_create(&userthreads[NUM_USERS], NULL, recieverLoop, (void *) &NUM_USERS);
+        pthread_create(&userthreads[NUM_USERS], NULL, recieverLoop, (void *) &users[NUM_USERS-1]);
     }
     for(int i=0; i<NUM_USERS; i++){
         pthread_cancel(userthreads[i]);
